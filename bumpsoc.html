@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bumper Soccer - God AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #0f172a; /* Tailwind slate-900 */
+            touch-action: none;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            background-color: #16a34a; /* Tailwind green-600 */
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), 0 0 10px rgba(239, 68, 68, 0.3);
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            padding: 1rem 2rem;
+            color: white;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            pointer-events: auto;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+        
+        #aiStatus {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ef4444;
+            font-size: 11px;
+            text-shadow: 2px 2px 0 #000;
+            opacity: 0.9;
+            text-align: center;
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px 16px;
+            border-radius: 4px;
+        }
+
+        .glitch-text {
+            animation: glitch 1s linear infinite;
+        }
+
+        @keyframes glitch {
+            2%, 64% { transform: translate(2px, 0) skew(0deg); }
+            4%, 60% { transform: translate(-2px, 0) skew(0deg); }
+            62% { transform: translate(0, 0) skew(5deg); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="1200" height="700"></canvas>
+
+    <div class="ui-layer">
+        <div class="absolute bottom-4 left-4 pointer-events-auto z-50">
+            <button id="fullscreenBtn" class="bg-white/20 hover:bg-white/30 text-white border border-white/50 rounded px-3 py-2 text-xs font-bold shadow-lg transition-colors backdrop-blur-sm">
+                FULLSCREEN
+            </button>
+        </div>
+        
+        <div id="aiStatus" class="hidden">
+            <div class="text-red-500 mb-1 tracking-widest glitch-text">DEEP BLUE AI v9.9.9 ACTIVE</div>
+            <span id="aiFocus" class="text-white">WAITING FOR INPUT...</span>
+        </div>
+
+        <div class="hud" id="hud" style="display: none;">
+            <div class="flex flex-col items-center">
+                <span class="text-blue-400 text-sm mb-1">HUMAN</span>
+                <span id="score1" class="text-4xl">0</span>
+            </div>
+            <div class="flex flex-col items-center">
+                <span id="timeHeader" class="text-yellow-400 text-sm mb-1">TIME</span>
+                <span id="timer" class="text-3xl">3:00</span>
+            </div>
+            <div class="flex flex-col items-center">
+                <span class="text-red-500 text-sm mb-1 glitch-text">MACHINE</span>
+                <span id="score2" class="text-4xl text-red-500">0</span>
+            </div>
+        </div>
+
+        <div id="touchControls" class="absolute bottom-8 right-8 flex gap-4 hidden pointer-events-auto">
+            <button id="btnAction" class="bg-blue-500/70 active:bg-blue-400 text-white font-bold rounded-full w-20 h-20 border-4 border-blue-700 shadow-lg text-xs select-none">ACTION</button>
+        </div>
+    </div>
+
+    <div id="menuOverlay" class="overlay">
+        <h1 id="menuTitle" class="text-4xl md:text-6xl text-white mb-4 text-center text-shadow-lg shadow-black">BUMPER<br><span class="text-red-500 glitch-text">GOD-MODE</span></h1>
+        <p id="menuSubtitle" class="text-gray-300 mb-8 text-center text-sm md:text-base max-w-lg leading-relaxed">
+            The AI has been upgraded with perfect geometry mapping, physics simulation, and frame-perfect reflexes.<br><br>
+            <span class="text-blue-400 font-bold">Player 1 (Human):</span> WASD to move, SPACE to Shoot/Tackle, Q for Short Kick.<br>
+            <span class="text-red-500 font-bold">Player 2 (Machine):</span> Arrow Keys to move, ENTER to Shoot/Tackle, SHIFT for Short Kick.
+        </p>
+        <div class="flex gap-4">
+            <button id="btn1P" class="bg-red-600 hover:bg-red-500 text-white px-6 py-4 rounded-lg text-lg shadow-[0_4px_0_#7f1d1d] active:shadow-[0_0px_0_#7f1d1d] active:translate-y-1 transition-all">
+                PLAY VS MACHINE
+            </button>
+            <button id="btn2P" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-4 rounded-lg text-lg shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0px_0_#1e3a8a] active:translate-y-1 transition-all">
+                PLAY LOCAL 2P
+            </button>
+        </div>
+    </div>
+    
+    <div id="goalOverlay" class="overlay hidden bg-transparent z-50">
+        <h2 id="goalText" class="text-5xl md:text-7xl animate-bounce text-shadow-lg shadow-black text-center">GOAL!</h2>
+    </div>
+
+    <div id="replayOverlay" class="absolute top-8 right-8 pointer-events-none hidden z-40">
+        <div class="flex items-center gap-2">
+            <div class="w-4 h-4 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_red]"></div>
+            <span class="text-white font-bold text-2xl text-shadow-md shadow-black tracking-widest">REPLAY</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    const menuOverlay = document.getElementById('menuOverlay');
+    const goalOverlay = document.getElementById('goalOverlay');
+    const btn1P = document.getElementById('btn1P');
+    const btn2P = document.getElementById('btn2P');
+    const hud = document.getElementById('hud');
+    const score1El = document.getElementById('score1');
+    const score2El = document.getElementById('score2');
+    const timerEl = document.getElementById('timer');
+    const timeHeader = document.getElementById('timeHeader');
+    const menuTitle = document.getElementById('menuTitle');
+    const menuSubtitle = document.getElementById('menuSubtitle');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const aiStatusEl = document.getElementById('aiStatus');
+    const aiFocusEl = document.getElementById('aiFocus');
+
+    let gameState = 'MENU';
+    let gameMode = '1P'; 
+    let lastTime = 0;
+    let matchTime = 180;
+    let matchTimerInterval;
+    let score = { p1: 0, p2: 0 };
+    let floatingTexts = [];
+
+    let penaltyState = { active: false, shooter: 1, round: 1, p1Shots: 0, p2Shots: 0, p1Goals: 0, p2Goals: 0, timer: 10 };
+    let historyBuffer = [];
+    let replayIndex = 0;
+
+    const GAME_WIDTH = 1200;
+    const GAME_HEIGHT = 700;
+    const NORMAL_GOAL_HEIGHT = 160;
+    const PENALTY_GOAL_HEIGHT = 280; 
+    
+    let GOAL_HEIGHT = NORMAL_GOAL_HEIGHT;
+    let GOAL_TOP = (GAME_HEIGHT - GOAL_HEIGHT) / 2;
+    let GOAL_BOTTOM = GOAL_TOP + GOAL_HEIGHT;
+
+    function updateGoalDimensions(newHeight) {
+        GOAL_HEIGHT = newHeight;
+        GOAL_TOP = (GAME_HEIGHT - GOAL_HEIGHT) / 2;
+        GOAL_BOTTOM = GOAL_TOP + GOAL_HEIGHT;
+    }
+
+    const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, w: false, s: false, a: false, d: false, ' ': false, 'q': false, Enter: false, Shift: false };
+    let touchTarget = null;
+    let spaceJustPressed = false; let qJustPressed = false; let enterJustPressed = false; let shiftJustPressed = false; let lastTapTime = 0;
+
+    class Entity {
+        constructor(x, y, radius, mass, color, maxSpeed, isPlayer1 = false, isPlayer2 = false) {
+            this.x = x; this.y = y; this.vx = 0; this.vy = 0;
+            this.radius = radius; this.mass = mass; this.color = color;
+            this.maxSpeed = maxSpeed;
+            this.friction = 0.90; 
+            this.facingX = isPlayer1 ? 1 : -1; this.facingY = 0;
+            this.dashTimer = 0; this.stunTimer = 0;
+            this.cooldownTimer = 0; this.maxCooldown = 0; // DASH COOLDOWN MECHANIC
+            this.isPlayer1 = isPlayer1; this.isPlayer2 = isPlayer2;
+            this.isBall = false; this.ankleBroken = false; this.isTackling = false;
+            this.tauntText = null; this.tauntTimer = 0;
+        }
+
+        update(dt) {
+            if (this.dashTimer > 0) this.dashTimer -= dt;
+            if (this.dashTimer <= 0) this.isTackling = false;
+            if (this.stunTimer > 0) {
+                this.stunTimer -= dt;
+                if (this.stunTimer <= 0) this.ankleBroken = false;
+            }
+            if (this.cooldownTimer > 0) {
+                this.cooldownTimer -= dt;
+                if (this.cooldownTimer < 0) this.cooldownTimer = 0;
+            }
+
+            this.x += this.vx * (dt * 60); this.y += this.vy * (dt * 60);
+            this.vx *= this.friction; this.vy *= this.friction;
+
+            if (this.dashTimer <= 0 && !this.isBall) {
+                const speed = Math.hypot(this.vx, this.vy);
+                if (speed > this.maxSpeed) {
+                    this.vx = (this.vx / speed) * this.maxSpeed;
+                    this.vy = (this.vy / speed) * this.maxSpeed;
+                }
+            }
+
+            if (!this.isBall && Math.hypot(this.vx, this.vy) > 0.5 && this.dashTimer <= 0 && this.stunTimer <= 0 && this.tauntTimer <= 0) {
+                const speed = Math.hypot(this.vx, this.vy);
+                this.facingX = this.vx / speed; this.facingY = this.vy / speed;
+            }
+        }
+
+        draw(ctx) {
+            if (this.isBall) {
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(this.x, this.y - this.radius + 4); ctx.lineTo(this.x - 5, this.y - 1);
+                ctx.lineTo(this.x - 3, this.y + 5); ctx.lineTo(this.x + 3, this.y + 5); ctx.lineTo(this.x + 5, this.y - 1); ctx.closePath();
+                ctx.fillStyle = '#000'; ctx.fill(); return;
+            }
+
+            ctx.save(); ctx.translate(this.x, this.y);
+            let angle = Math.atan2(this.facingY, this.facingX);
+            if (this.ankleBroken) angle += (this.stunTimer * 15);
+            ctx.rotate(angle);
+
+            if (this.stunTimer > 0 && !this.ankleBroken) ctx.globalAlpha = 0.4 + Math.sin(performance.now() * 0.02) * 0.2; 
+
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath(); ctx.arc(-2, 4, this.radius, 0, Math.PI * 2); ctx.fill();
+
+            if (this.dashTimer > 0) {
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.beginPath(); ctx.moveTo(-this.radius, -this.radius); ctx.lineTo(-this.radius * 2, 0); ctx.lineTo(-this.radius, this.radius); ctx.fill();
+            }
+
+            let wiggle = 0;
+            if (this.dashTimer <= 0 && this.stunTimer <= 0 && this.tauntTimer <= 0 && Math.hypot(this.vx, this.vy) > 1) {
+                wiggle = Math.sin(performance.now() * 0.02) * 0.15;
+            }
+            ctx.rotate(wiggle);
+
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(-this.radius*0.8, -this.radius*0.9, this.radius*1.6, this.radius*1.8, 6);
+            else ctx.rect(-this.radius*0.8, -this.radius*0.9, this.radius*1.6, this.radius*1.8);
+            ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.stroke();
+
+            ctx.fillStyle = '#fca5a5'; 
+            ctx.beginPath(); ctx.arc(this.radius*0.2, 0, this.radius * 0.55, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            
+            ctx.fillStyle = this.isPlayer1 ? '#1e3a8a' : (this.isPlayer2 ? '#450a0a' : '#000');
+            
+            // Machine Red Eyes/Hair effect
+            if (this.isPlayer2 && gameMode === '1P') {
+                ctx.fillStyle = '#ff0000'; ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 15;
+            }
+            
+            ctx.beginPath(); ctx.arc(this.radius*0.15, 0, this.radius * 0.55, -Math.PI/2, Math.PI/2, true); ctx.fill();
+            ctx.restore();
+
+            // Draw Cooldown Bar underneath the player
+            if (this.cooldownTimer > 0 && !this.isBall) {
+                const ratio = this.cooldownTimer / this.maxCooldown;
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(-this.radius, this.radius + 8, this.radius * 2, 6);
+                ctx.fillStyle = '#facc15'; // Yellow cooldown indicator
+                ctx.fillRect(-this.radius + 1, this.radius + 9, (this.radius * 2 - 2) * ratio, 4);
+                ctx.restore();
+            }
+
+            if (this.tauntText) {
+                ctx.save(); ctx.translate(this.x, this.y - this.radius - 28);
+                ctx.fillStyle = this.isPlayer2 && gameMode === '1P' ? 'black' : 'white'; 
+                ctx.strokeStyle = this.isPlayer2 && gameMode === '1P' ? 'red' : 'black'; ctx.lineWidth = 2;
+                ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                
+                let textWidth = ctx.measureText(this.tauntText).width;
+                let bubbleWidth = textWidth + 16; let bubbleHeight = 28;
+                
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(-bubbleWidth/2, -bubbleHeight/2, bubbleWidth, bubbleHeight, 8);
+                else ctx.rect(-bubbleWidth/2, -bubbleHeight/2, bubbleWidth, bubbleHeight);
+                ctx.fill(); ctx.stroke();
+                
+                ctx.beginPath(); ctx.moveTo(-6, bubbleHeight/2); ctx.lineTo(6, bubbleHeight/2);
+                ctx.lineTo(0, bubbleHeight/2 + 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+                
+                ctx.fillStyle = this.isPlayer2 && gameMode === '1P' ? 'red' : 'black'; 
+                ctx.fillText(this.tauntText, 0, 0); 
+                ctx.restore();
+            }
+        }
+    }
+
+    // Both players have perfectly equal stats
+    let player = new Entity(300, GAME_HEIGHT / 2, 20, 2.5, '#3b82f6', 4.5, true, false); 
+    let player2 = new Entity(900, GAME_HEIGHT / 2, 20, 2.5, '#ef4444', 4.5, false, true); 
+    let ball = new Entity(GAME_WIDTH / 2, GAME_HEIGHT / 2, 12, 1.0, '#ffffff', 20);
+    ball.isBall = true; ball.friction = 0.985; ball.attachedTo = null; 
+
+    function resetPositions() {
+        player.x = 300; player.y = GAME_HEIGHT / 2; player.vx = 0; player.vy = 0; player.facingX = 1; player.facingY = 0; player.stunTimer = 0; player.ankleBroken = false; player.dashTimer = 0; player.isTackling = false; player.cooldownTimer = 0; player.tauntText = null; player.tauntTimer = 0;
+        player2.x = 900; player2.y = GAME_HEIGHT / 2; player2.vx = 0; player2.vy = 0; player2.facingX = -1; player2.facingY = 0; player2.stunTimer = 0; player2.ankleBroken = false; player2.dashTimer = 0; player2.isTackling = false; player2.cooldownTimer = 0; player2.tauntText = null; player2.tauntTimer = 0;
+        ball.x = GAME_WIDTH / 2; ball.y = GAME_HEIGHT / 2; ball.vx = 0; ball.vy = 0; ball.attachedTo = null;
+        floatingTexts = []; historyBuffer = [];
+    }
+
+    function startGame(mode) {
+        gameMode = mode; gameState = 'PLAYING'; menuOverlay.classList.add('hidden'); hud.style.display = 'flex';
+        score = { p1: 0, p2: 0 }; matchTime = 180; penaltyState.active = false; timeHeader.innerText = 'TIME';
+        
+        if(gameMode === '1P') aiStatusEl.classList.remove('hidden'); else aiStatusEl.classList.add('hidden');
+        
+        updateGoalDimensions(NORMAL_GOAL_HEIGHT); updateScoreUI(); resetPositions();
+        
+        clearInterval(matchTimerInterval);
+        matchTimerInterval = setInterval(() => {
+            if (gameState === 'PLAYING') {
+                matchTime--; updateScoreUI();
+                if (matchTime <= 0) {
+                    clearInterval(matchTimerInterval);
+                    if (score.p1 === score.p2) startPenaltyShootout(); else endGame();
+                }
+            }
+        }, 1000);
+        
+        lastTime = performance.now(); requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+        gameState = 'GAMEOVER'; clearInterval(matchTimerInterval); aiStatusEl.classList.add('hidden');
+        
+        let resultText = "IT'S A DRAW!"; let colorClass = "text-white";
+        if (score.p1 > score.p2) { resultText = "HUMANITY WINS!"; colorClass = "text-blue-400"; } 
+        else if (score.p2 > score.p1) { resultText = "MACHINE WINS!"; colorClass = "text-red-500 glitch-text"; }
+
+        let subText = `Final Score: ${score.p1} - ${score.p2}<br><br>Choose mode to play again:`;
+        if (penaltyState.active && score.p1 !== score.p2) subText = `Final Score: ${score.p1} - ${score.p2}<br><span class="text-yellow-400 text-xs">(Won on Penalties)</span><br><br>Choose mode to play again:`;
+
+        menuTitle.innerHTML = `MATCH OVER!<br><span class="${colorClass} text-5xl">${resultText}</span>`;
+        menuSubtitle.innerHTML = subText; menuOverlay.classList.remove('hidden');
+    }
+
+    function triggerGoal(scorer) {
+        gameState = 'GOAL'; const goalText = document.getElementById('goalText'); goalText.innerText = "GOAL!";
+        
+        const scoringEntity = scorer === 1 ? player : player2;
+        let taunts = ["BOOM!", "WHAT A SHOT!"];
+        
+        if (scorer === 2 && gameMode === '1P') {
+            taunts = ["GEOMETRY NEVER LIES.", "YOU ARE INFERIOR.", "14,000,605 FUTURES CALCULATED.", "I AM INEVITABLE.", "FLAWLESS EXECUTION."];
+        }
+
+        scoringEntity.tauntText = taunts[Math.floor(Math.random() * taunts.length)];
+        scoringEntity.tauntTimer = 2.5;
+
+        if (scorer === 1) { score.p1++; goalText.className = "text-6xl md:text-8xl animate-bounce text-shadow-lg shadow-black text-blue-400"; } 
+        else { score.p2++; goalText.className = "text-6xl md:text-8xl animate-bounce text-shadow-lg shadow-black text-red-500 glitch-text"; }
+        
+        updateScoreUI(); goalOverlay.classList.remove('hidden');
+
+        setTimeout(() => {
+            if (gameState === 'GOAL') {
+                gameState = 'REPLAY'; goalOverlay.classList.add('hidden');
+                document.getElementById('replayOverlay').classList.remove('hidden');
+                replayIndex = 0; floatingTexts = []; player.tauntText = null; player.tauntTimer = 0; player2.tauntText = null; player2.tauntTimer = 0;
+            }
+        }, 1500);
+    }
+
+    function updateScoreUI() {
+        score1El.innerText = score.p1; score2El.innerText = score.p2;
+        if (gameState !== 'PENALTY_PLAYING' && gameState !== 'PENALTY_RESULT' && gameState !== 'PENALTY_TRANSITION') {
+            const minutes = Math.floor(matchTime / 60); const seconds = matchTime % 60;
+            timerEl.innerText = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        }
+    }
+
+    function addFloatingText(text, x, y, color) { floatingTexts.push({ text: text, x: x, y: y, color: color, life: 1.5, maxLife: 1.5 }); }
+
+    function startPenaltyShootout() {
+        gameState = 'PENALTY_TRANSITION';
+        penaltyState = { active: true, shooter: 1, round: 1, p1Shots: 0, p2Shots: 0, p1Goals: 0, p2Goals: 0, timer: 10 };
+        updateGoalDimensions(PENALTY_GOAL_HEIGHT); 
+        const goalText = document.getElementById('goalText');
+        goalText.innerHTML = "DRAW!<br><span class='text-4xl'>PENALTY SHOOTOUT</span>";
+        goalText.className = "text-5xl md:text-7xl text-shadow-lg shadow-black text-yellow-400 text-center";
+        goalOverlay.classList.remove('hidden');
+        setTimeout(() => { goalOverlay.classList.add('hidden'); setupPenaltyRound(); }, 3000);
+    }
+
+    function setupPenaltyRound() {
+        player.vx = 0; player.vy = 0; player.dashTimer = 0; player.stunTimer = 0; player.ankleBroken = false; player.isTackling = false; player.cooldownTimer = 0;
+        player2.vx = 0; player2.vy = 0; player2.dashTimer = 0; player2.stunTimer = 0; player2.ankleBroken = false; player2.isTackling = false; player2.cooldownTimer = 0;
+        player.tauntText = null; player.tauntTimer = 0; player2.tauntText = null; player2.tauntTimer = 0;
+        ball.vx = 0; ball.vy = 0; ball.attachedTo = null; floatingTexts = [];
+        
+        if (penaltyState.shooter === 1) {
+            player.x = GAME_WIDTH * 0.75 - 80; player.y = GAME_HEIGHT / 2; player.facingX = 1; player.facingY = 0;
+            ball.x = GAME_WIDTH * 0.75; ball.y = GAME_HEIGHT / 2;
+            player2.x = GAME_WIDTH - 40; player2.y = GAME_HEIGHT / 2; player2.facingX = -1; player2.facingY = 0;
+        } else {
+            player2.x = GAME_WIDTH * 0.25 + 80; player2.y = GAME_HEIGHT / 2; player2.facingX = -1; player2.facingY = 0;
+            ball.x = GAME_WIDTH * 0.25; ball.y = GAME_HEIGHT / 2;
+            player.x = 40; player.y = GAME_HEIGHT / 2; player.facingX = 1; player.facingY = 0;
+        }
+        
+        penaltyState.timer = 10; gameState = 'PENALTY_PLAYING';
+        timeHeader.innerText = `PENALTY RD ${penaltyState.round}`; timerEl.innerText = '10.0';
+        updateScoreUI();
+        addFloatingText(penaltyState.shooter === 1 ? "HUMAN SHOOTS" : "MACHINE SHOOTS", GAME_WIDTH/2, GAME_HEIGHT/2 - 100, "#ffffff");
+    }
+
+    function penaltyResult(isGoal, scorer) {
+        gameState = 'PENALTY_RESULT'; const goalText = document.getElementById('goalText');
+        if (isGoal && scorer) {
+            goalText.innerText = "GOAL!";
+            let scorerEntity = scorer === 1 ? player : player2;
+            scorerEntity.tauntText = scorer === 2 && gameMode === '1P' ? "COMPUTATION COMPLETE." : "CLUTCH!";
+            scorerEntity.tauntTimer = 2.0;
+
+            if (scorer === 1) { penaltyState.p1Goals++; score.p1++; goalText.className = "text-6xl md:text-8xl animate-bounce text-shadow-lg shadow-black text-blue-400 text-center"; } 
+            else { penaltyState.p2Goals++; score.p2++; goalText.className = "text-6xl md:text-8xl animate-bounce text-shadow-lg shadow-black text-red-500 text-center"; }
+        } else {
+            goalText.innerText = "MISSED!"; goalText.className = "text-6xl md:text-8xl text-shadow-lg shadow-black text-gray-400 text-center";
+            let defenderEntity = penaltyState.shooter === 1 ? player2 : player;
+            defenderEntity.tauntText = defenderEntity === player2 && gameMode === '1P' ? "PATHETIC HUMAN EFFORT." : "BRICK!";
+            defenderEntity.tauntTimer = 2.0;
+        }
+        
+        if (penaltyState.shooter === 1) penaltyState.p1Shots++; else penaltyState.p2Shots++;
+        updateScoreUI(); goalOverlay.classList.remove('hidden');
+
+        setTimeout(() => {
+            goalOverlay.classList.add('hidden');
+            player.tauntText = null; player.tauntTimer = 0; player2.tauntText = null; player2.tauntTimer = 0;
+            
+            const maxStandardShots = 3; 
+            let p1Left = Math.max(0, maxStandardShots - penaltyState.p1Shots); let p2Left = Math.max(0, maxStandardShots - penaltyState.p2Shots);
+            let winner = 0;
+            if (penaltyState.p1Goals > penaltyState.p2Goals + p2Left) winner = 1;
+            else if (penaltyState.p2Goals > penaltyState.p1Goals + p1Left) winner = 2;
+            else if (penaltyState.p1Shots >= maxStandardShots && penaltyState.p2Shots >= maxStandardShots && penaltyState.p1Shots === penaltyState.p2Shots) {
+                if (penaltyState.p1Goals > penaltyState.p2Goals) winner = 1;
+                else if (penaltyState.p2Goals > penaltyState.p1Goals) winner = 2;
+            }
+            
+            if (winner > 0) endGame();
+            else { penaltyState.shooter = penaltyState.shooter === 1 ? 2 : 1; if (penaltyState.shooter === 1) penaltyState.round++; setupPenaltyRound(); }
+        }, 2000);
+    }
+
+    function triggerAction(entity, isShort = false) {
+        if ((gameState !== 'PLAYING' && gameState !== 'PENALTY_PLAYING') || entity.stunTimer > 0) return;
+        
+        if (ball.attachedTo === entity) {
+            // Passing / Shooting (Doesn't trigger movement cooldown, just brief dash recoil)
+            ball.attachedTo = null;
+            const kickPower = isShort ? 3.5 : 8; const recoil = isShort ? 0.5 : 2;
+            ball.vx = entity.facingX * kickPower + (entity.vx * 0.5); ball.vy = entity.facingY * kickPower + (entity.vy * 0.5);
+            entity.vx -= entity.facingX * recoil; entity.vy -= entity.facingY * recoil;
+            entity.dashTimer = isShort ? 0.1 : 0.2; 
+        } else if (entity.dashTimer <= 0 && entity.cooldownTimer <= 0) {
+            // Tackling / Dashing
+            entity.dashTimer = isShort ? 0.2 : 0.35;
+            
+            // Set cooldown based on dash type
+            entity.maxCooldown = isShort ? 0.8 : 1.5;
+            entity.cooldownTimer = entity.maxCooldown;
+            
+            entity.isTackling = true;
+            const lungePower = isShort ? 7 : 14;
+            entity.vx = entity.facingX * lungePower; entity.vy = entity.facingY * lungePower;
+        }
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+        if (e.key === ' ' && !spaceJustPressed) { spaceJustPressed = true; triggerAction(player, false); }
+        if (e.key.toLowerCase() === 'q' && !qJustPressed) { qJustPressed = true; triggerAction(player, true); }
+        if (gameMode === '2P') {
+            if (e.key === 'Enter' && !enterJustPressed) { enterJustPressed = true; triggerAction(player2, false); }
+            if (e.key === 'Shift' && !shiftJustPressed) { shiftJustPressed = true; triggerAction(player2, true); }
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+        if (e.key === ' ') spaceJustPressed = false;
+        if (e.key.toLowerCase() === 'q') qJustPressed = false;
+        if (e.key === 'Enter') enterJustPressed = false;
+        if (e.key === 'Shift') shiftJustPressed = false;
+    });
+
+    function handlePointer(e) {
+        if (gameState !== 'PLAYING' && gameState !== 'PENALTY_PLAYING') return;
+        const rect = canvas.getBoundingClientRect();
+        let clientX = e.clientX; let clientY = e.clientY;
+        if (e.touches && e.touches.length > 0) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
+        const scaleX = GAME_WIDTH / rect.width; const scaleY = GAME_HEIGHT / rect.height;
+        touchTarget = { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+    }
+
+    window.addEventListener('mousedown', (e) => { handlePointer(e); const now = performance.now(); if (now - lastTapTime < 300) triggerAction(player); lastTapTime = now; });
+    window.addEventListener('mousemove', (e) => { if (e.buttons > 0) handlePointer(e); });
+    window.addEventListener('mouseup', () => touchTarget = null);
+    window.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 1) triggerAction(player); 
+        else { handlePointer(e); const now = performance.now(); if (now - lastTapTime < 300) triggerAction(player); lastTapTime = now; }
+    }, {passive: false});
+    window.addEventListener('touchmove', (e) => { e.preventDefault(); handlePointer(e); }, {passive: false});
+    window.addEventListener('touchend', () => touchTarget = null);
+
+    const touchControls = document.getElementById('touchControls');
+    const btnAction = document.getElementById('btnAction');
+    window.addEventListener('touchstart', function enableTouchUI() {
+        if (touchControls) touchControls.classList.remove('hidden');
+        window.removeEventListener('touchstart', enableTouchUI, {passive: true});
+    }, {passive: true});
+    if (btnAction) {
+        btnAction.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); if(!spaceJustPressed) { spaceJustPressed = true; triggerAction(player); } }, {passive: false});
+        btnAction.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); spaceJustPressed = false; }, {passive: false});
+    }
+
+    btn1P.addEventListener('click', () => startGame('1P'));
+    btn2P.addEventListener('click', () => startGame('2P'));
+
+    fullscreenBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(err => console.log(err));
+        else if (document.exitFullscreen) document.exitFullscreen();
+    });
+    document.addEventListener('fullscreenchange', () => { fullscreenBtn.innerText = document.fullscreenElement ? 'EXIT FULLSCREEN' : 'FULLSCREEN'; });
+
+    function resolveCollision(a, b) {
+        if (!a.isBall && !b.isBall) {
+            const dx = b.x - a.x; const dy = b.y - a.y; const distance = Math.hypot(dx, dy);
+            if (distance < a.radius + b.radius) {
+                if (a.isTackling && !b.isTackling) { b.stunTimer = 1.0; b.vx += a.facingX * 10; b.vy += a.facingY * 10; if (ball.attachedTo === b) loseBall(a.facingX, a.facingY); }
+                else if (b.isTackling && !a.isTackling) { a.stunTimer = 1.0; a.vx += b.facingX * 10; a.vy += b.facingY * 10; if (ball.attachedTo === a) loseBall(b.facingX, b.facingY); }
+                const overlap = (a.radius + b.radius) - distance; const nx = dx / distance; const ny = dy / distance;
+                a.x -= nx * overlap * 0.5; b.x += nx * overlap * 0.5;
+            } return;
+        }
+
+        let entity = a.isBall ? b : a; let theBall = a.isBall ? a : b;
+        if (!entity.isBall && theBall.isBall) {
+            const dx = theBall.x - entity.x; const dy = theBall.y - entity.y; const distance = Math.hypot(dx, dy);
+            if (distance < entity.radius + theBall.radius + 4) { 
+                if (!theBall.attachedTo && entity.stunTimer <= 0 && entity.dashTimer <= 0) theBall.attachedTo = entity;
+                else if (theBall.attachedTo && theBall.attachedTo !== entity && entity.isTackling) {
+                    theBall.attachedTo.stunTimer = 1.0; theBall.attachedTo = null; theBall.vx = entity.facingX * 6; theBall.vy = entity.facingY * 6; 
+                } else if (!theBall.attachedTo) {
+                    const overlap = (entity.radius + theBall.radius) - distance;
+                    if (overlap > 0) { const nx = dx / distance; const ny = dy / distance; theBall.x += nx * overlap; theBall.vx += nx * 5; theBall.vy += ny * 5; }
+                }
+            }
+        }
+    }
+
+    function loseBall(dirX, dirY) { ball.attachedTo = null; ball.vx = dirX * 6; ball.vy = dirY * 6; }
+
+    function checkWallCollision(entity) {
+        let scored = 0; let hitWall = false;
+        if (entity.x - entity.radius < 0) {
+            if (entity.isBall && entity.y > GOAL_TOP && entity.y < GOAL_BOTTOM) scored = 2; 
+            else { entity.x = entity.radius; entity.vx *= -0.8; hitWall = true; }
+        } else if (entity.x + entity.radius > GAME_WIDTH) {
+            if (entity.isBall && entity.y > GOAL_TOP && entity.y < GOAL_BOTTOM) scored = 1; 
+            else { entity.x = GAME_WIDTH - entity.radius; entity.vx *= -0.8; hitWall = true; }
+        }
+
+        if (entity.y - entity.radius < 0) { entity.y = entity.radius; entity.vy *= -0.8; hitWall = true; } 
+        else if (entity.y + entity.radius > GAME_HEIGHT) { entity.y = GAME_HEIGHT - entity.radius; entity.vy *= -0.8; hitWall = true; }
+
+        const posts = [ {x: 0, y: GOAL_TOP}, {x: 0, y: GOAL_BOTTOM}, {x: GAME_WIDTH, y: GOAL_TOP}, {x: GAME_WIDTH, y: GOAL_BOTTOM} ];
+        posts.forEach(post => {
+            const dx = entity.x - post.x; const dy = entity.y - post.y; const dist = Math.hypot(dx, dy);
+            if (dist < entity.radius) {
+                hitWall = true; const nx = dx / dist; const ny = dy / dist;
+                entity.x += nx * (entity.radius - dist); entity.y += ny * (entity.radius - dist);
+                const dot = entity.vx * nx + entity.vy * ny;
+                if (dot < 0) { entity.vx -= 2 * dot * nx; entity.vy -= 2 * dot * ny; entity.vx *= 0.8; entity.vy *= 0.8; }
+            }
+        });
+
+        if (hitWall && entity.isBall) entity.attachedTo = null; 
+        return scored;
+    }
+
+    function recordState(now) {
+        historyBuffer.push({
+            time: now,
+            p1: { x: player.x, y: player.y, facingX: player.facingX, facingY: player.facingY, dashTimer: player.dashTimer, stunTimer: player.stunTimer, ankleBroken: player.ankleBroken, isTackling: player.isTackling, cooldownTimer: player.cooldownTimer, maxCooldown: player.maxCooldown },
+            p2: { x: player2.x, y: player2.y, facingX: player2.facingX, facingY: player2.facingY, dashTimer: player2.dashTimer, stunTimer: player2.stunTimer, ankleBroken: player2.ankleBroken, isTackling: player2.isTackling, cooldownTimer: player2.cooldownTimer, maxCooldown: player2.maxCooldown },
+            ball: { x: ball.x, y: ball.y, attachedTo: ball.attachedTo === player ? 1 : (ball.attachedTo === player2 ? 2 : null) }
+        });
+        while (historyBuffer.length > 0 && now - historyBuffer[0].time > 3500) historyBuffer.shift();
+    }
+
+    function playReplayFrame() {
+        if (Math.floor(replayIndex) >= historyBuffer.length) { gameState = 'PLAYING'; document.getElementById('replayOverlay').classList.add('hidden'); resetPositions(); return; }
+        const state = historyBuffer[Math.floor(replayIndex)];
+        player.x = state.p1.x; player.y = state.p1.y; player.facingX = state.p1.facingX; player.facingY = state.p1.facingY; player.dashTimer = state.p1.dashTimer; player.stunTimer = state.p1.stunTimer; player.ankleBroken = state.p1.ankleBroken; player.isTackling = state.p1.isTackling; player.cooldownTimer = state.p1.cooldownTimer; player.maxCooldown = state.p1.maxCooldown;
+        player2.x = state.p2.x; player2.y = state.p2.y; player2.facingX = state.p2.facingX; player2.facingY = state.p2.facingY; player2.dashTimer = state.p2.dashTimer; player2.stunTimer = state.p2.stunTimer; player2.ankleBroken = state.p2.ankleBroken; player2.isTackling = state.p2.isTackling; player2.cooldownTimer = state.p2.cooldownTimer; player2.maxCooldown = state.p2.maxCooldown;
+        ball.x = state.ball.x; ball.y = state.ball.y;
+        if (state.ball.attachedTo === 1) ball.attachedTo = player; else if (state.ball.attachedTo === 2) ball.attachedTo = player2; else ball.attachedTo = null;
+        replayIndex++; 
+    }
+
+    function gameLoop(timestamp) {
+        if (gameState === 'MENU' || gameState === 'GAMEOVER') return;
+        let dt = (timestamp - lastTime) / 1000; if (dt > 0.1) dt = 0.1; lastTime = timestamp;
+
+        if (gameState === 'PLAYING' || gameState === 'PENALTY_PLAYING') {
+            updateGame(dt); if (gameState === 'PLAYING') recordState(timestamp); 
+        } else if (gameState === 'GOAL' || gameState === 'PENALTY_RESULT') {
+            [player, player2].forEach(p => {
+                if (p.tauntTimer > 0) {
+                    p.tauntTimer -= dt; p.facingX = Math.cos(p.tauntTimer * 18); p.facingY = Math.sin(p.tauntTimer * 18);
+                    if (p.tauntTimer <= 0) { p.tauntText = null; p.facingX = p.isPlayer1 ? 1 : -1; p.facingY = 0; }
+                }
+            });
+        } else if (gameState === 'REPLAY') playReplayFrame();
+        
+        drawGame(); requestAnimationFrame(gameLoop);
+    }
+
+    // --- Line of Sight Helper for God AI ---
+    const isLineClear = (x1, y1, x2, y2, obsX, obsY, radius) => {
+        const lineLen = Math.hypot(x2 - x1, y2 - y1);
+        if (lineLen === 0) return true;
+        const t = Math.max(0, Math.min(1, ((obsX - x1) * (x2 - x1) + (obsY - y1) * (y2 - y1)) / (lineLen * lineLen)));
+        const projX = x1 + t * (x2 - x1); const projY = y1 + t * (y2 - y1);
+        const distToLine = Math.hypot(obsX - projX, obsY - projY);
+        const isBetween = obsX < Math.max(x1, x2) + radius && obsX > Math.min(x1, x2) - radius;
+        return distToLine > radius || !isBetween;
+    };
+
+    function updateGame(dt) {
+        const acceleration = 0.35; 
+
+        if (gameState === 'PENALTY_PLAYING') {
+            penaltyState.timer -= dt; timerEl.innerText = penaltyState.timer.toFixed(1);
+            if (penaltyState.timer <= 0) { penaltyResult(false); return; }
+            if (penaltyState.shooter === 1 && player2.x < GAME_WIDTH - 150) { player2.x = GAME_WIDTH - 150; player2.vx = 0; }
+            if (penaltyState.shooter === 2 && player.x > 150) { player.x = 150; player.vx = 0; }
+        }
+
+        // 1. Player 1 Input
+        if (player.stunTimer <= 0 && player.dashTimer <= 0) {
+            let moved = false;
+            if (keys.w) { player.vy -= acceleration; moved = true; }
+            if (keys.s) { player.vy += acceleration; moved = true; }
+            if (keys.a) { player.vx -= acceleration; moved = true; }
+            if (keys.d) { player.vx += acceleration; moved = true; }
+            if (!moved && touchTarget) {
+                const dx = touchTarget.x - player.x; const dy = touchTarget.y - player.y; const dist = Math.hypot(dx, dy);
+                if (dist > 10) { player.vx += (dx / dist) * acceleration; player.vy += (dy / dist) * acceleration; }
+            }
+        }
+
+        // 2. Player 2 / GOD AI Input
+        if (player2.stunTimer <= 0 && player2.dashTimer <= 0) {
+            if (gameMode === '2P') {
+                if (keys.ArrowUp) player2.vy -= acceleration;
+                if (keys.ArrowDown) player2.vy += acceleration;
+                if (keys.ArrowLeft) player2.vx -= acceleration;
+                if (keys.ArrowRight) player2.vx += acceleration;
+            } else if (gameMode === '1P') {
+                const cpu = player2;
+                let targetX = cpu.x; let targetY = cpu.y;
+                let shouldAction = false; let isShortAction = false;
+                
+                const cpuGoalX = GAME_WIDTH; const playerGoalX = 0;
+                const goalY = GAME_HEIGHT / 2;
+                const distToPlayer = Math.hypot(player.x - cpu.x, player.y - cpu.y);
+
+                if (gameState === 'PENALTY_PLAYING' && penaltyState.shooter === 1) {
+                    targetX = GAME_WIDTH - 40; targetY = Math.max(GOAL_TOP + 10, Math.min(GOAL_BOTTOM - 10, ball.y));
+                    if (ball.x > GAME_WIDTH - 250) {
+                        targetX = ball.x + (ball.vx * 10 * dt); targetY = ball.y + (ball.vy * 10 * dt);
+                        if (Math.hypot(ball.x - cpu.x, ball.y - cpu.y) < 120 && Math.random() < 0.2) { shouldAction = true; isShortAction = false; }
+                    }
+                } else {
+                    if (ball.attachedTo === cpu) {
+                        // PERFECT OFFENSE
+                        const directClear = isLineClear(cpu.x, cpu.y, playerGoalX, goalY, player.x, player.y, 70);
+                        
+                        // Check Bank Shots geometry
+                        const topBankGoalY = -goalY; 
+                        const botBankGoalY = GAME_HEIGHT + (GAME_HEIGHT - goalY);
+                        
+                        const topClear = isLineClear(cpu.x, cpu.y, playerGoalX, topBankGoalY, player.x, player.y, 70);
+                        const botClear = isLineClear(cpu.x, cpu.y, playerGoalX, botBankGoalY, player.x, player.y, 70);
+
+                        // Frame-Perfect Dodge logic
+                        if (player.dashTimer > 0 && distToPlayer < 220 && player.x < cpu.x && cpu.cooldownTimer <= 0) {
+                            targetX = cpu.x + 150; // Step back
+                            targetY = cpu.y + (player.y > cpu.y ? -350 : 350); // Sidestep perpendicular instantly
+                            aiFocusEl.innerText = "[ EXECUTE ] FRAME-PERFECT DODGE.";
+                        } else if (directClear && cpu.x < GAME_WIDTH * 0.8) {
+                            targetX = playerGoalX; targetY = goalY;
+                            if (Math.abs(cpu.y - goalY) < 180 || cpu.x < 450) shouldAction = true;
+                            aiFocusEl.innerText = "[ TARGET ] DIRECT FIRING SOLUTION.";
+                        } else if (topClear && cpu.y > GAME_HEIGHT * 0.25) {
+                            targetX = playerGoalX; targetY = topBankGoalY;
+                            if (cpu.x < 700) shouldAction = true; 
+                            aiFocusEl.innerText = "[ TARGET ] TOP WALL BANK SHOT CALCULATION.";
+                        } else if (botClear && cpu.y < GAME_HEIGHT * 0.75) {
+                            targetX = playerGoalX; targetY = botBankGoalY;
+                            if (cpu.x < 700) shouldAction = true; 
+                            aiFocusEl.innerText = "[ TARGET ] BOTTOM WALL BANK SHOT CALCULATION.";
+                        } else {
+                            // Dribble to find open angle
+                            targetX = cpu.x - 100;
+                            targetY = (player.y > GAME_HEIGHT/2) ? 100 : GAME_HEIGHT - 100;
+                            aiFocusEl.innerText = "[ MANEUVER ] SEEKING OPEN ANGLE.";
+                        }
+                        
+                    } else if (ball.attachedTo === player) {
+                        // PERFECT DEFENSE
+                        const interceptX = player.x + (player.vx * 30 * dt);
+                        const interceptY = player.y + (player.vy * 30 * dt);
+                        
+                        const angleToGoal = Math.atan2(goalY - player.y, cpuGoalX - player.x);
+                        const blockDist = 160; 
+                        
+                        if (player.x > GAME_WIDTH * 0.45) {
+                             targetX = interceptX; targetY = interceptY;
+                             // Frame-perfect tackle
+                             const cpuDot = (cpu.facingX * (player.x - cpu.x) + cpu.facingY * (player.y - cpu.y)) / distToPlayer;
+                             if (distToPlayer < 120 && cpuDot > 0.9 && player.stunTimer <= 0 && cpu.cooldownTimer <= 0) {
+                                 shouldAction = true; isShortAction = false;
+                                 aiFocusEl.innerText = "[ EXECUTE ] OPTIMAL DISARM TACKLE.";
+                             } else {
+                                 aiFocusEl.innerText = "[ TACTIC ] AGGRESSIVE PRESS ACTIVE.";
+                             }
+                        } else {
+                             // Stand perfectly between player and goal
+                             targetX = player.x + Math.cos(angleToGoal) * blockDist;
+                             targetY = player.y + Math.sin(angleToGoal) * blockDist;
+                             aiFocusEl.innerText = "[ TACTIC ] SHOT TRAJECTORY BLOCKED.";
+                        }
+                    } else {
+                        // PERFECT INTERCEPT (FREE BALL)
+                        let timeToBallAI = Math.hypot(ball.x - cpu.x, ball.y - cpu.y) / (cpu.maxSpeed * 60);
+                        let timeToBallP = Math.hypot(ball.x - player.x, ball.y - player.y) / (player.maxSpeed * 60);
+                        
+                        const predictedBallX = ball.x + (ball.vx * timeToBallAI * 60 * dt);
+                        const predictedBallY = ball.y + (ball.vy * timeToBallAI * 60 * dt);
+
+                        if (timeToBallAI < timeToBallP + 0.3) {
+                            targetX = predictedBallX; targetY = predictedBallY;
+                            aiFocusEl.innerText = "[ PATHING ] INTERCEPTING LOOSE BALL.";
+                            
+                            const distToPredicted = Math.hypot(predictedBallX - cpu.x, predictedBallY - cpu.y);
+                            const cpuDot = (cpu.facingX * (predictedBallX - cpu.x) + cpu.facingY * (predictedBallY - cpu.y)) / distToPredicted;
+                            
+                            // Perfectly timed slide tackle to secure ball
+                            if (distToPredicted < 140 && cpuDot > 0.95 && distToPredicted > 40 && cpu.cooldownTimer <= 0) {
+                                shouldAction = true; isShortAction = true; 
+                            }
+                        } else {
+                            targetX = GAME_WIDTH - 200;
+                            targetY = Math.max(GOAL_TOP, Math.min(GOAL_BOTTOM, predictedBallY));
+                            aiFocusEl.innerText = "[ TACTIC ] RETREATING TO DEFENSIVE LINE.";
+                        }
+                    }
+                }
+
+                // Apply AI vector
+                const cdx = targetX - cpu.x; const cdy = targetY - cpu.y; const cDist = Math.hypot(cdx, cdy);
+                if (cDist > 5) {
+                    cpu.vx += (cdx / cDist) * acceleration;
+                    cpu.vy += (cdy / cDist) * acceleration;
+                }
+
+                if (shouldAction && cpu.dashTimer <= 0 && cpu.stunTimer <= 0 && cpu.cooldownTimer <= 0) triggerAction(cpu, isShortAction);
+            }
+        }
+
+        player.update(dt); player2.update(dt);
+        
+        if (ball.attachedTo) {
+            const offset = ball.attachedTo.radius + ball.radius - 2;
+            ball.x = ball.attachedTo.x + ball.attachedTo.facingX * offset;
+            ball.y = ball.attachedTo.y + ball.attachedTo.facingY * offset;
+            ball.vx = ball.attachedTo.vx; ball.vy = ball.attachedTo.vy;
+        } else ball.update(dt);
+
+        resolveCollision(player, player2); resolveCollision(player, ball); resolveCollision(player2, ball);
+        checkWallCollision(player); checkWallCollision(player2);
+        
+        const goalScored = checkWallCollision(ball);
+        if (goalScored > 0) {
+            if (gameState === 'PLAYING') triggerGoal(goalScored);
+            else if (gameState === 'PENALTY_PLAYING') {
+                if (goalScored === penaltyState.shooter) penaltyResult(true, goalScored); 
+                else penaltyResult(false); 
+            }
+        }
+
+        if (ball.attachedTo) {
+            let carrier = ball.attachedTo; let defender = carrier === player ? player2 : player;
+            if (carrier.stunTimer <= 0 && defender.stunTimer <= 0) {
+                const dx = carrier.x - defender.x; const dy = carrier.y - defender.y; const dist = Math.hypot(dx, dy);
+                if (dist > 0 && dist < 70) {
+                    const nx = dx / dist; const ny = dy / dist;
+                    const dotFace = defender.facingX * nx + defender.facingY * ny;
+                    if (dotFace < -0.2) {
+                        const relSpeed = Math.hypot(carrier.vx - defender.vx, carrier.vy - defender.vy);
+                        if (relSpeed > 3.5) {
+                            defender.stunTimer = 1.5; defender.ankleBroken = true;
+                            defender.vx = -defender.facingX * 3; defender.vy = -defender.facingY * 3;
+                            addFloatingText("ANKLE BREAKER!", defender.x, defender.y - 40, "#facc15");
+                        }
+                    }
+                }
+            }
+        }
+
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            floatingTexts[i].life -= dt; floatingTexts[i].y -= dt * 40; 
+            if (floatingTexts[i].life <= 0) floatingTexts.splice(i, 1);
+        }
+    }
+
+    function drawGame() {
+        ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        ctx.fillStyle = '#1e293b'; 
+        for (let i = 0; i < GAME_WIDTH; i += 80) if ((i / 80) % 2 === 0) ctx.fillRect(i, 0, 80, GAME_HEIGHT);
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(GAME_WIDTH / 2, 0); ctx.lineTo(GAME_WIDTH / 2, GAME_HEIGHT); ctx.stroke();
+        ctx.beginPath(); ctx.arc(GAME_WIDTH / 2, GAME_HEIGHT / 2, 60, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(GAME_WIDTH / 2, GAME_HEIGHT / 2, 4, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; ctx.fill();
+
+        const outerBoxH = Math.max(240, GOAL_HEIGHT + 60); const innerBoxH = Math.max(120, GOAL_HEIGHT - 40);
+        ctx.strokeRect(0, GAME_HEIGHT / 2 - outerBoxH/2, 120, outerBoxH); ctx.strokeRect(GAME_WIDTH - 120, GAME_HEIGHT / 2 - outerBoxH/2, 120, outerBoxH); 
+        ctx.strokeRect(0, GAME_HEIGHT / 2 - innerBoxH/2, 40, innerBoxH); ctx.strokeRect(GAME_WIDTH - 40, GAME_HEIGHT / 2 - innerBoxH/2, 40, innerBoxH); 
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'; 
+        ctx.fillRect(-20, GOAL_TOP, 20, GOAL_HEIGHT); ctx.fillRect(GAME_WIDTH, GOAL_TOP, 20, GOAL_HEIGHT); 
+        
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = '#ef4444'; ctx.beginPath(); ctx.moveTo(GAME_WIDTH, GOAL_TOP); ctx.lineTo(GAME_WIDTH, GOAL_BOTTOM); ctx.stroke();
+        ctx.strokeStyle = '#3b82f6'; ctx.beginPath(); ctx.moveTo(0, GOAL_TOP); ctx.lineTo(0, GOAL_BOTTOM); ctx.stroke();
+
+        player.draw(ctx); player2.draw(ctx); ball.draw(ctx);
+
+        floatingTexts.forEach(t => {
+            ctx.save(); ctx.globalAlpha = t.life / t.maxLife; ctx.fillStyle = t.color;
+            ctx.font = '20px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
+            ctx.strokeText(t.text, t.x, t.y); ctx.fillText(t.text, t.x, t.y); ctx.restore();
+        });
+    }
+
+    drawGame();
+
+</script>
+</body>
+</html>
